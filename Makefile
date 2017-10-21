@@ -11,6 +11,8 @@ CFLAGS =  -Wall -g -std=c++11
 
 all: Application
 
+full: Application TAGS cscope
+
 Application: MP1Node.o EmulNet.o Application.o Log.o Params.o Member.o  
 	g++ -o Application MP1Node.o EmulNet.o Application.o Log.o Params.o Member.o ${CFLAGS}
 
@@ -34,3 +36,15 @@ Member.o: Member.cpp Member.h
 
 clean:
 	rm -rf *.o Application dbg.log msgcount.log stats.log machine.log
+
+cleanall:
+	rm -rf *.o Application dbg.log msgcount.log stats.log machine.log TAGS cscope.*
+
+.phony: TAGS cscope
+
+TAGS:
+	find . -regex ".*\.\(cpp\|[hcS]\)" | xargs etags -a
+
+cscope:
+	find . -regex ".*\.\(cpp\|[hcS]\)" > cscope.files
+	cscope -b -q -k

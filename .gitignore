@@ -1,0 +1,6 @@
+*.o
+Application
+*~
+*.log
+TAGS
+cscope.*

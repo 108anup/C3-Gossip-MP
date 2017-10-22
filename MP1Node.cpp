@@ -1,3 +1,4 @@
+
 /**********************************
  * FILE NAME: MP1Node.cpp
  *
@@ -141,6 +142,7 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
 
     // create JOINREQ message: format of data is {struct Address myaddr}
     msg->msgType = JOINREQ;
+
     memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
     memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr),
            &memberNode->heartbeat, sizeof(long));
@@ -149,7 +151,6 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
     sprintf(s, "Trying to join...");
     log->LOG(&memberNode->addr, s);
 #endif
-
     // send JOINREQ message to introducer member
     emulNet->ENsend(&memberNode->addr, joinaddr, (char *)msg, msgsize);
 
@@ -230,7 +231,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size) {
     MessageHdr *msg;
       
     //Add to MemberList
-    MemberListEntry mle; char *itr = (data+1);
+    MemberListEntry mle; char *itr = (data+sizeof(MessageHdr));
     Address memAddr; long heartbeat;
     memcpy (&memAddr.addr, (char *)(itr), sizeof(memAddr.addr));
     itr += sizeof(memAddr.addr);
@@ -249,19 +250,38 @@ bool MP1Node::recvCallBack(void *env, char *data, int size) {
 
     //Send JOINREP
     size_t listSize;
-    void *ptr = serializeList (memberNode->memberList, &listSize);
+    char *ptr = serializeList (memberNode->memberList, &listSize);
 
-    size_t msgsize = sizeof(MessageHdr) + listSize;
+    size_t msgsize = sizeof(MessageHdr) + listSize + sizeof(size_t);
     msg = (MessageHdr *) malloc(msgsize * sizeof(char));
 
     // create JOINREP message 
-    msg->msgType = JOINREQ;
-    memcpy((char *)(msg+1), ptr, listSize*sizeof(char));
+    msg->msgType = JOINREP;
+    memcpy((char *)(msg+1), ptr, (sizeof(size_t) + listSize)*sizeof(char));
 
     // send JOINREQ message to introducer member
     emulNet->ENsend(&memberNode->addr, &memAddr, (char *)msg, msgsize);
 
     free(msg);
+    free(ptr);
+  }
+  if (msg_recv->msgType == JOINREP){
+    vector<MemberListEntry> ml = deserializeList (data + sizeof(MessageHdr));
+    int numMembers = ml.size();
+
+    for (int i=0; i<numMembers; i++){
+      ml[i].timestamp = par->getcurrtime();
+      memberNode->memberList.push_back(ml[i]);
+      
+      Address addr;
+      memcpy(&addr.addr[0], &ml[i].id, sizeof(int));
+      memcpy(&addr.addr[4], &ml[i].port, sizeof(short));
+      
+#ifdef DEBUGLOG
+    log->logNodeAdd(&memberNode->addr, &addr);
+#endif
+    }
+    memberNode->inGroup = true;
   }
 
   return 1;
@@ -279,7 +299,7 @@ void MP1Node::nodeLoopOps() {
 	/*
 	 * Your code goes here
 	 */
-
+  
   return;
 }
 
@@ -334,7 +354,7 @@ int mleSize(){
 char* serializeList (vector<MemberListEntry> &memberList, size_t *listSize) {
   int numMembers = memberList.size();
   *listSize = mleSize() * numMembers;
-  char *ptr = (char *)malloc(*listSize * sizeof(char));
+  char *ptr = (char *)malloc((*listSize + sizeof(size_t))* sizeof(char));
   char *itr = ptr; 
 
   memcpy((char *)(itr), listSize, sizeof(size_t));
@@ -349,7 +369,17 @@ char* serializeList (vector<MemberListEntry> &memberList, size_t *listSize) {
     itr += sizeof(long);
     memcpy(itr, &memberList[i].timestamp, sizeof(long));
     itr += sizeof(long);
+    /*printf ("%d,%d,%d,%d ", memberList[i].id, memberList[i].port,
+      memberList[i].heartbeat, memberList[i].timestamp);*/
   }
+  /*
+    cout<<"\n";
+    int l = (*listSize + sizeof(size_t))* sizeof(char);
+    for (int i= 0; i<l; i++){
+    printf ("%02d ", *(ptr+i));
+    }
+    cout<<"\n";
+  */
   return ptr;
 }
 
@@ -357,6 +387,7 @@ vector<MemberListEntry> deserializeList (char *ptr){
   char *itr = ptr;
   size_t listSize;
   memcpy (&listSize, (char *)(itr), sizeof(size_t));
+  itr += sizeof(size_t);
 
   int numMembers = listSize / mleSize();
   vector<MemberListEntry> ml(numMembers);

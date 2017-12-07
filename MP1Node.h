@@ -20,6 +20,7 @@
  */
 #define TREMOVE 20
 #define TFAIL 5
+#define GOSSIPFANOUT 2
 
 /*
  * Note: You can change/add any functions in MP1Node.{h,cpp}
@@ -76,6 +77,8 @@ public:
 	Address getJoinAddress();
 	void initMemberListTable(Member *memberNode);
 	void printAddress(Address *addr);
+  char* serializeList (vector<MemberListEntry> &, size_t *);
+  void updateMember (MemberListEntry);
 	virtual ~MP1Node();
 };
 

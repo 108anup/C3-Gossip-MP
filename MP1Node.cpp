@@ -133,13 +133,8 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
 #ifdef DEBUGLOG
     log->LOG(&memberNode->addr, "Starting up group...");
 #endif
-    MemberListEntry mle(1, 0, memberNode->heartbeat, par->getcurrtime());
-    memberNode->memberList.push_back(mle);
-#ifdef DEBUGLOG
-    log->logNodeAdd(&memberNode->addr, &memberNode->addr);
-#endif
 
-    memberNode->inGroup = true;
+    addSelfToGroup();
   }
   else {
     size_t msgsize = sizeof(MessageHdr) + sizeof(joinaddr->addr) + sizeof(long) + 1;
@@ -249,10 +244,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size) {
     mle.heartbeat = heartbeat;
     mle.timestamp = par->getcurrtime();
 
-    memberNode->memberList.push_back(mle);
-#ifdef DEBUGLOG
-    log->logNodeAdd(&memberNode->addr, &memAddr);
-#endif
+    updateMember (mle);
 
     //JOINREP
     size_t listSize;
@@ -275,26 +267,16 @@ bool MP1Node::recvCallBack(void *env, char *data, int size) {
     vector<MemberListEntry> ml = deserializeList (data + sizeof(MessageHdr));
     int numMembers = ml.size();
 
+    addSelfToGroup();
     for (int i=0; i<numMembers; i++){
-      ml[i].timestamp = par->getcurrtime();
-      memberNode->memberList.push_back(ml[i]);
-      
-      Address addr;
-      memcpy(&addr.addr[0], &ml[i].id, sizeof(int));
-      memcpy(&addr.addr[4], &ml[i].port, sizeof(short));
-      
-#ifdef DEBUGLOG
-      log->logNodeAdd(&memberNode->addr, &addr);
-#endif
+      updateMember (ml[i]);
     }
-    memberNode->inGroup = true;
   }
   else if (msg_recv->msgType == HEARTBEAT){
     vector<MemberListEntry> ml = deserializeList (data + sizeof(MessageHdr));
     int numMembers = ml.size();
 
     for (int i=0; i<numMembers; i++){
-      ml[i].timestamp = par->getcurrtime();
       updateMember (ml[i]);
     }
   }
@@ -315,33 +297,42 @@ void MP1Node::nodeLoopOps() {
 	 * Your code goes here
 	 */
 
+  vector<MemberListEntry> &ml = memberNode->memberList;
+  int current_time = par->getcurrtime();
+  
   //Update Heartbeat
   memberNode->heartbeat++;
   int id = memberNode->addr.getid();
   short port = memberNode->addr.getport();
 
+  //First member of list is self
+  ml[0].setheartbeat(memberNode->heartbeat);
+  ml[0].settimestamp(current_time);
+
   //Update Membership List
-  int current_time = par->getcurrtime();
-  vector<MemberListEntry> &ml = memberNode->memberList;
-  for (int i= 0; i<ml.size(); i++){
-    //printf ("MLE: id: %d, port: %d, timestamp: %d, hearbeat: %d\n",
-    //        ml[i].getid(), ml[i].getport(), ml[i].gettimestamp(), ml[i].getport());
-    if (ml[i].getid() == id && ml[i].getport() == port){
-      ml[i].setheartbeat(memberNode->heartbeat);
-      ml[i].settimestamp(current_time);
-      break;
-    }
-    else {
-      if (current_time - ml[i].gettimestamp() > TREMOVE){
+  for (int i = 1; i<ml.size(); i++){
+    if (current_time - ml[i].gettimestamp() > TREMOVE){
+      printf ("MLE: currtime: %d, host: id %d, port %d ::: id: %d, port: %d, timestamp: %d, heartbeat: %d\n",
+              current_time, id, port, ml[i].getid(), ml[i].getport(),
+              ml[i].gettimestamp(), ml[i].getheartbeat());
+    
 #ifdef DEBUGLOG
-        Address addr(ml[i].getid(), ml[i].getport());
-        log->logNodeRemove(&memberNode->addr, &addr);
+      Address addr(ml[i].getid(), ml[i].getport());
+      log->logNodeRemove(&memberNode->addr, &addr);
 #endif
-        ml.erase (ml.begin() + i);
-        i--;
-      }
+      ml.erase (ml.begin() + i);
+      i--;
     }
   }
+
+  // if (memberNode->heartbeat == 600){
+  //   printf ("Membership list of node with id: %d, port: %d\n", id, port);
+  //   for(int i = 0; i<ml.size(); i++){
+  //     printf ("MLE: id: %d, port: %d, timestamp: %d, heartbeat: %d\n",
+  //             ml[i].getid(), ml[i].getport(), ml[i].gettimestamp(), ml[i].getheartbeat());
+  //   }
+  // }
+  
 
   //HEARTBEAT (Propagate)
   if (ml.size() > 1){
@@ -489,18 +480,32 @@ void MP1Node::updateMember (MemberListEntry mle){
     if(ml[i].getid() == id && ml[i].getport() == port){
       if (ml[i].heartbeat < mle.getheartbeat())
       {
+        //printf ("got hbt: %d", mle.getheartbeat());
         ml[i].settimestamp(par->getcurrtime());
         ml[i].setheartbeat(mle.getheartbeat());
       }
       return;
     }
   }
-  mle.settimestamp(par->getcurrtime());
-  ml.push_back(mle);
-  
-#ifdef DEBUGLOG
-  Address addr(mle.id, mle.port);
-  log->logNodeAdd(&memberNode->addr, &addr);
-#endif
 
+  if (mle.getheartbeat() != -1){
+    mle.settimestamp(par->getcurrtime());
+    ml.push_back(mle);
+
+#ifdef DEBUGLOG
+    Address addr(mle.id, mle.port);
+    log->logNodeAdd(&memberNode->addr, &addr);
+#endif
+  }
+}
+
+void MP1Node::addSelfToGroup (){
+  memberNode->inGroup = true;
+  // Add itself to member list
+  MemberListEntry mle(memberNode->addr.getid(), memberNode->addr.getport(),
+                      memberNode->heartbeat, par->getcurrtime());
+  memberNode->memberList.push_back(mle);
+#ifdef DEBUGLOG
+  log->logNodeAdd(&memberNode->addr, &memberNode->addr);
+#endif
 }

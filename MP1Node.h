@@ -79,6 +79,7 @@ public:
 	void printAddress(Address *addr);
   char* serializeList (vector<MemberListEntry> &, size_t *);
   void updateMember (MemberListEntry);
+  void addSelfToGroup ();
 	virtual ~MP1Node();
 };
 

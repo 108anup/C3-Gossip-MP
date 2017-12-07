@@ -78,6 +78,7 @@ public:
 	void initMemberListTable(Member *memberNode);
 	void printAddress(Address *addr);
   char* serializeList (vector<MemberListEntry> &, size_t *);
+  vector<MemberListEntry> deserializeList (char *);
   void updateMember (MemberListEntry);
   void addSelfToGroup ();
 	virtual ~MP1Node();

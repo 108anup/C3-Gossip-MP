@@ -112,7 +112,8 @@ int EmulNet::ENsend(Address *myaddr, Address *toaddr, char *data, int size) {
 
 #ifdef DEBUGLOG
   sprintf(temp, "Sending 4+%d B msg type %d to %d.%d.%d.%d:%d ", size-4, *(int *)data, toaddr->addr[0], toaddr->addr[1], toaddr->addr[2], toaddr->addr[3], *(short *)&toaddr->addr[4]);
-  //printf ("%s\n", temp);
+  //if (*(int *)data == 2)
+  //  printf ("%s\n", temp);
 #endif
 
 	return size;

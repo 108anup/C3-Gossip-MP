@@ -13,7 +13,6 @@
  */
 
 int mleSize();
-vector<MemberListEntry> deserializeList (char *);
 
 /**
  * Overloaded Constructor of the MP1Node class
@@ -142,7 +141,6 @@ int MP1Node::introduceSelfToGroup(Address *joinaddr) {
 
     // create JOINREQ message: format of data is {struct Address myaddr}
     msg->msgType = JOINREQ;
-
     memcpy((char *)(msg+1), &memberNode->addr.addr, sizeof(memberNode->addr.addr));
     memcpy((char *)(msg+1) + 1 + sizeof(memberNode->addr.addr),
            &memberNode->heartbeat, sizeof(long));
@@ -236,6 +234,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size) {
     Address memAddr; long heartbeat;
     memcpy (&memAddr.addr, (char *)(itr), sizeof(memAddr.addr));
     itr += sizeof(memAddr.addr);
+    itr++;
     memcpy (&heartbeat, (char *)(itr), sizeof(long));
     itr += sizeof(long);
 
@@ -272,7 +271,7 @@ bool MP1Node::recvCallBack(void *env, char *data, int size) {
       updateMember (ml[i]);
     }
   }
-  else if (msg_recv->msgType == HEARTBEAT){
+  else if (msg_recv->msgType == HEARTBEAT && memberNode->inGroup){
     vector<MemberListEntry> ml = deserializeList (data + sizeof(MessageHdr));
     int numMembers = ml.size();
 
@@ -309,13 +308,18 @@ void MP1Node::nodeLoopOps() {
   ml[0].setheartbeat(memberNode->heartbeat);
   ml[0].settimestamp(current_time);
 
+  if (ml[0].getid() != id)
+    printf ("Problem!\n");
+  
   //Update Membership List
-  for (int i = 1; i<ml.size(); i++){
+  for (int i = 0; i<ml.size(); i++){
     if (current_time - ml[i].gettimestamp() > TREMOVE){
-      printf ("MLE: currtime: %d, host: id %d, port %d ::: id: %d, port: %d, timestamp: %d, heartbeat: %d\n",
-              current_time, id, port, ml[i].getid(), ml[i].getport(),
-              ml[i].gettimestamp(), ml[i].getheartbeat());
-    
+
+      // printf ("removing: time: %d | host: id %d, port %d | guest: id %d, port %d "
+      //         "hbt: %d, timestamp %d\n",
+      //         par->getcurrtime(), id, port, ml[i].getid(),
+      //         ml[i].getport(), ml[i].getheartbeat(), ml[i].gettimestamp());
+
 #ifdef DEBUGLOG
       Address addr(ml[i].getid(), ml[i].getport());
       log->logNodeRemove(&memberNode->addr, &addr);
@@ -347,13 +351,8 @@ void MP1Node::nodeLoopOps() {
     memcpy((char *)(msg+1), ptr, (sizeof(size_t) + listSize)*sizeof(char));
 
     // send to GOSSIPFANOUT randomly selected nodes
-    for (int i = 0; i<GOSSIPFANOUT; i++){
-      int member_to_send = -1;
-      do {
-        member_to_send = rand() % ml.size();
-        //printf("Here with member_to_send = %d, id: %d, port: %d\n", member_to_send, id, port);
-      } while (ml[member_to_send].getid() == id && ml[member_to_send].getport() == port);
-
+    for (int i = 1; i<ml.size(); i++){
+      int member_to_send = i;//rand() % (ml.size()-1) + 1;
       Address addr(ml[member_to_send].getid(), ml[member_to_send].getport());
       emulNet->ENsend(&memberNode->addr, &addr, (char *)msg, msgsize);
     }
@@ -421,7 +420,7 @@ char* MP1Node::serializeList (vector<MemberListEntry> &memberList, size_t *listS
   memcpy((char *)(itr), listSize, sizeof(size_t));
   itr += sizeof(size_t);
 
-  const long m1 = -1;
+  const long m1 = 0;
   for(int i= 0; i<numMembers; i++){
     memcpy(itr, &memberList[i].id, sizeof(int));
     itr += sizeof(int);
@@ -434,22 +433,11 @@ char* MP1Node::serializeList (vector<MemberListEntry> &memberList, size_t *listS
     itr += sizeof(long);
     memcpy(itr, &memberList[i].timestamp, sizeof(long));
     itr += sizeof(long);
-    /*printf ("%d,%d,%d,%d ", memberList[i].id, memberList[i].port,
-      memberList[i].heartbeat, memberList[i].timestamp);*/
-      
   }
-  /*
-    cout<<"\n";
-    int l = (*listSize + sizeof(size_t))* sizeof(char);
-    for (int i= 0; i<l; i++){
-    printf ("%02d ", *(ptr+i));
-    }
-    cout<<"\n";
-  */
   return ptr;
 }
 
-vector<MemberListEntry> deserializeList (char *ptr){
+vector<MemberListEntry> MP1Node::deserializeList (char *ptr){
   char *itr = ptr;
   size_t listSize;
   memcpy (&listSize, (char *)(itr), sizeof(size_t));
@@ -476,12 +464,13 @@ void MP1Node::updateMember (MemberListEntry mle){
   vector<MemberListEntry> &ml = memberNode->memberList;
   int id = mle.getid();
   short port = mle.getport();
+  int current_time = par->getcurrtime();
+
   for(int i = 0; i<ml.size(); i++){
     if(ml[i].getid() == id && ml[i].getport() == port){
-      if (ml[i].heartbeat < mle.getheartbeat())
+      if (ml[i].getheartbeat() < mle.getheartbeat())
       {
-        //printf ("got hbt: %d", mle.getheartbeat());
-        ml[i].settimestamp(par->getcurrtime());
+        ml[i].settimestamp(current_time);
         ml[i].setheartbeat(mle.getheartbeat());
       }
       return;
@@ -489,12 +478,12 @@ void MP1Node::updateMember (MemberListEntry mle){
   }
 
   if (mle.getheartbeat() != -1){
-    mle.settimestamp(par->getcurrtime());
-    ml.push_back(mle);
+  mle.settimestamp(par->getcurrtime());
+  ml.push_back(mle);
 
 #ifdef DEBUGLOG
-    Address addr(mle.id, mle.port);
-    log->logNodeAdd(&memberNode->addr, &addr);
+  Address addr(mle.id, mle.port);
+  log->logNodeAdd(&memberNode->addr, &addr);
 #endif
   }
 }

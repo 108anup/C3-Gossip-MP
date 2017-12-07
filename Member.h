@@ -42,10 +42,10 @@ public:
 		memcpy(&addr[0], &id, sizeof(int));
 		memcpy(&addr[4], &port, sizeof(short));
 	}
-  Address(int id, short port){
-    memcpy(&addr[0], &id, sizeof(int));
-    memcpy(&addr[4], &port, sizeof(short));
-  }
+  /* Address(int id, short port){ */
+  /*   memcpy(&addr[0], &id, sizeof(int)); */
+  /*   memcpy(&addr[4], &port, sizeof(short)); */
+  /* } */
 	string getAddress() {
 		int id = 0;
 		short port;
@@ -53,12 +53,12 @@ public:
 		memcpy(&port, &addr[4], sizeof(short));
 		return to_string(id) + ":" + to_string(port);
 	}
-  int getid(){
-    return *(int *) &addr[0];
-  }
-  short getport(){
-    return *(short *) &addr[4];
-  }
+  /* int getid(){ */
+  /*   return *(int *) &addr[0]; */
+  /* } */
+  /* short getport(){ */
+  /*   return *(short *) &addr[4]; */
+  /* } */
 	void init() {
 		memset(&addr, 0, sizeof(addr));
 	}

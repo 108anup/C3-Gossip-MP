@@ -12,6 +12,21 @@
  * Note: You can change/add any functions in MP1Node.{h,cpp}
  */
 
+Address id_portToAddress(int id, int port){
+  Address addr;
+  memcpy(&addr.addr[0], &id, sizeof(int));
+  memcpy(&addr.addr[4], &port, sizeof(short));
+  return addr;
+}
+
+int idFromAddress(Address addr){
+  return *(int *) &addr.addr[0];
+}
+
+short portFromAddress(Address addr){
+  return *(short *) &addr.addr[4];
+}
+
 int mleSize();
 
 /**
@@ -301,8 +316,8 @@ void MP1Node::nodeLoopOps() {
   
   //Update Heartbeat
   memberNode->heartbeat++;
-  int id = memberNode->addr.getid();
-  short port = memberNode->addr.getport();
+  int id = idFromAddress(memberNode->addr);
+  short port = portFromAddress(memberNode->addr);
 
   //First member of list is self
   ml[0].setheartbeat(memberNode->heartbeat);
@@ -321,7 +336,7 @@ void MP1Node::nodeLoopOps() {
       //         ml[i].getport(), ml[i].getheartbeat(), ml[i].gettimestamp());
 
 #ifdef DEBUGLOG
-      Address addr(ml[i].getid(), ml[i].getport());
+      Address addr = id_portToAddress (ml[i].getid(), ml[i].getport());
       log->logNodeRemove(&memberNode->addr, &addr);
 #endif
       ml.erase (ml.begin() + i);
@@ -354,7 +369,7 @@ void MP1Node::nodeLoopOps() {
     for (int i = 1; i<=GOSSIPFANOUT; i++){
       int member_to_send = rand() % (ml.size()-1) + 1;
       // printf ("sending to idx %d\n", member_to_send);
-      Address addr(ml[member_to_send].getid(), ml[member_to_send].getport());
+      Address addr = id_portToAddress(ml[member_to_send].getid(), ml[member_to_send].getport());
       emulNet->ENsend(&memberNode->addr, &addr, (char *)msg, msgsize);
     }
 
@@ -483,7 +498,7 @@ void MP1Node::updateMember (MemberListEntry mle){
   ml.push_back(mle);
 
 #ifdef DEBUGLOG
-  Address addr(mle.id, mle.port);
+  Address addr = id_portToAddress(mle.id, mle.port);
   log->logNodeAdd(&memberNode->addr, &addr);
 #endif
   }
@@ -492,7 +507,7 @@ void MP1Node::updateMember (MemberListEntry mle){
 void MP1Node::addSelfToGroup (){
   memberNode->inGroup = true;
   // Add itself to member list
-  MemberListEntry mle(memberNode->addr.getid(), memberNode->addr.getport(),
+  MemberListEntry mle(idFromAddress(memberNode->addr), portFromAddress(memberNode->addr),
                       memberNode->heartbeat, par->getcurrtime());
   memberNode->memberList.push_back(mle);
 #ifdef DEBUGLOG

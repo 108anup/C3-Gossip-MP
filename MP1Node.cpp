@@ -351,8 +351,9 @@ void MP1Node::nodeLoopOps() {
     memcpy((char *)(msg+1), ptr, (sizeof(size_t) + listSize)*sizeof(char));
 
     // send to GOSSIPFANOUT randomly selected nodes
-    for (int i = 1; i<ml.size(); i++){
-      int member_to_send = i;//rand() % (ml.size()-1) + 1;
+    for (int i = 1; i<=GOSSIPFANOUT; i++){
+      int member_to_send = rand() % (ml.size()-1) + 1;
+      // printf ("sending to idx %d\n", member_to_send);
       Address addr(ml[member_to_send].getid(), ml[member_to_send].getport());
       emulNet->ENsend(&memberNode->addr, &addr, (char *)msg, msgsize);
     }
@@ -420,7 +421,7 @@ char* MP1Node::serializeList (vector<MemberListEntry> &memberList, size_t *listS
   memcpy((char *)(itr), listSize, sizeof(size_t));
   itr += sizeof(size_t);
 
-  const long m1 = 0;
+  const long m1 = -1;
   for(int i= 0; i<numMembers; i++){
     memcpy(itr, &memberList[i].id, sizeof(int));
     itr += sizeof(int);
